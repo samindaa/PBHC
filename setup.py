@@ -9,8 +9,8 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "hydra-core>=1.2.0",
-        "numpy==1.24.4",
-        "mujoco==3.2.3",
+        # "numpy==1.24.4",
+        # "mujoco==3.2.3",
         "mujoco-python-viewer",
         "rich",
         "ipdb",

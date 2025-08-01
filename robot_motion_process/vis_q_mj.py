@@ -34,10 +34,10 @@ def add_visual_capsule(scene, point1, point2, radius, rgba):
     mujoco.mjv_initGeom(scene.geoms[scene.ngeom-1],
                         mujoco.mjtGeom.mjGEOM_CAPSULE, np.zeros(3),
                         np.zeros(3), np.zeros(9), rgba.astype(np.float32))
-    mujoco.mjv_makeConnector(scene.geoms[scene.ngeom-1],
-                            mujoco.mjtGeom.mjGEOM_CAPSULE, radius,
-                            point1[0], point1[1], point1[2],
-                            point2[0], point2[1], point2[2])
+    # mujoco.mjv_makeConnector(scene.geoms[scene.ngeom-1],
+    #                         mujoco.mjtGeom.mjGEOM_CAPSULE, radius,
+    #                         point1[0], point1[1], point1[2],
+    #                         point2[0], point2[1], point2[2])
 
 def key_call_back( keycode):
     global curr_start, num_motions, motion_id, motion_acc, time_step, dt, speed, paused, rewind, motion_data_keys, contact_mask, curr_time, resave
