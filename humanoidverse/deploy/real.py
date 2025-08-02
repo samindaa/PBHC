@@ -7,6 +7,7 @@ import time
 import signal
 from typing import Union
 import ml_collections
+import pprint
 
 import torch
 from humanoidverse.deploy import URCIRobot
@@ -107,23 +108,23 @@ class Controller:
         self.lowcmd_publisher_.Write(cmd)
 
     def wait_for_low_state(self):
-        # while self.low_state.tick == 0:
-        #     time.sleep(0.02)
+        while self.low_state.tick == 0:
+            time.sleep(0.02)
         print("Successfully connected to the robot.")
 
     def zero_torque_state(self):
         print("Enter zero torque state.")
         print("Waiting for the start signal...")
         # TODO: this needs be enabled
-        while True:
-            start_str = input("Enter s: ")
-            if start_str in ["s", "S"]:
-                break
+        # while True:
+        #     start_str = input("Enter s: ")
+        #     if start_str in ["s", "S"]:
+        #         break
 
-        # while self.remote_controller.button[KeyMap.start] != 1:
-        #     create_zero_cmd(self.low_cmd)
-        #     self.send_cmd(self.low_cmd)
-        #     time.sleep(0.02)
+        while self.remote_controller.button[KeyMap.start] != 1:
+            create_zero_cmd(self.low_cmd)
+            self.send_cmd(self.low_cmd)
+            time.sleep(0.02)
 
     def move_to_default_pos(self, default_pos):
         print(f"Moving to default pos: {len(default_pos)=} {default_pos}")
@@ -133,53 +134,15 @@ class Controller:
 
         dof_size = len(self.config.dof_idx)
         # record the current pos
-        init_dof_pos = np.zeros(dof_size, dtype=np.float32)
-        for i in range(dof_size):
-            init_dof_pos[i] = self.low_state.motor_state[
-                self.config.dof_idx[i]].q
-
+        init_dof_pos = [self.low_state.motor_state[i].q for i in self.config.dof_idx if i in self.config.use_dof_idx]
+        init_dof_pos = np.array(init_dof_pos, dtype=np.float32)
+        print("XXX", np.array_str(init_dof_pos, precision=2, suppress_small=True))
         # move to default pos
         for i in range(num_step):
             alpha = i / num_step
-            for j in range(dof_size):
-                motor_idx = self.config.dof_idx[j]
-                # PBHC 23DOF
-                if motor_idx >= len(default_pos):
-                    continue
-                target_pos = default_pos[j]
-                self.low_cmd.motor_cmd[motor_idx].q = init_dof_pos[j] * (
-                    1 - alpha) + target_pos * alpha
-                self.low_cmd.motor_cmd[motor_idx].qd = 0
-                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[j]
-                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[j]
-                self.low_cmd.motor_cmd[motor_idx].tau = 0
-            self.send_cmd(self.low_cmd)
+            next_tgt = default_pos * alpha + init_dof_pos * (1.0 - alpha)
+            self.send_target(next_tgt)  
             time.sleep(0.02)
-
-    def default_pos_state(self):
-        print("Enter default pos state.")
-        print("Waiting for the Button A signal...")
-        # while self.remote_controller.button[KeyMap.A] != 1:
-        #     for i in range(len(self.config.leg_joint2motor_idx)):
-        #         motor_idx = self.config.leg_joint2motor_idx[i]
-        #         self.low_cmd.motor_cmd[
-        #             motor_idx].q = self.config.default_angles[i]
-        #         self.low_cmd.motor_cmd[motor_idx].qd = 0
-        #         self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[i]
-        #         self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[i]
-        #         self.low_cmd.motor_cmd[motor_idx].tau = 0
-        #     for i in range(len(self.config.arm_waist_joint2motor_idx)):
-        #         motor_idx = self.config.arm_waist_joint2motor_idx[i]
-        #         self.low_cmd.motor_cmd[
-        #             motor_idx].q = self.config.arm_waist_target[i]
-        #         self.low_cmd.motor_cmd[motor_idx].qd = 0
-        #         self.low_cmd.motor_cmd[
-        #             motor_idx].kp = self.config.arm_waist_kps[i]
-        #         self.low_cmd.motor_cmd[
-        #             motor_idx].kd = self.config.arm_waist_kds[i]
-        #         self.low_cmd.motor_cmd[motor_idx].tau = 0
-        #     self.send_cmd(self.low_cmd)
-        #     time.sleep(self.config.control_dt)
 
     def get_state(self, data):
         """Get mujoco data proxy."""
@@ -190,9 +153,7 @@ class Controller:
             data.qpos[7 + i] = self.low_state.motor_state[j].q
             data.qpos[6 + i] = self.low_state.motor_state[j].dq
 
-        # print("XXX", data.qpos)
-        # print("YYY", data.qvel)
-
+        # print("XXX", np.array_str(data.qpos, precision=2, suppress_small=True))
         return data
 
     def send_target(self, target_dof_pos):
@@ -204,16 +165,16 @@ class Controller:
                 tgt = 0.0
             self.low_cmd.motor_cmd[motor_idx].q = tgt
             self.low_cmd.motor_cmd[motor_idx].qd = 0
-            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[motor_idx]
-            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[motor_idx]
+            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[motor_idx]*1.0
+            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[motor_idx]*1.0
             self.low_cmd.motor_cmd[motor_idx].tau = 0
 
+        
         self.send_cmd(self.low_cmd)
 
 
 class RealRobot(URCIRobot):
     REAL = True
-    HANG = True
 
     print_torque = lambda tau: print(
         f"tau (norm, max) = {np.linalg.norm(tau):.2f}, \t{np.max(tau):.2f}",
@@ -222,9 +183,10 @@ class RealRobot(URCIRobot):
     def __init__(self, cfg):
         super().__init__(cfg)
 
+        pprint.pprint(dict(cfg))
         # Initialize DDS communication
-        # TODO: change this to 0 and comm interface.
         ChannelFactoryInitialize(1, "lo")
+        # ChannelFactoryInitialize(0, "enx2c16dbaa90f1")
         self.controller = Controller()
 
         # Enter the zero torque state, press the start key to continue executing
@@ -232,9 +194,6 @@ class RealRobot(URCIRobot):
 
         # Move to the default position
         self.controller.move_to_default_pos(self.dof_init_pose)
-
-        # Enter the default position state, press the A key to continue executing
-        self.controller.default_pos_state()
 
         def signal_handler(sig, frame):
             logger.info("Ctrl+C  Exiting safely...")
@@ -269,10 +228,6 @@ class RealRobot(URCIRobot):
         # print(self.decimation, self.sim_dt, self.dt)
         self.Reset()
 
-        ###
-        # mujoco.mj_step(self.model, self.data)  # type: ignore
-        ###
-
     def _reset(self):
         self.data.qpos[:3] = np.array(self.cfg.robot.init_state.pos)
         self.data.qpos[3:7] = np.array(
@@ -283,14 +238,13 @@ class RealRobot(URCIRobot):
         self.data.qpos[7:] = self.dof_init_pose
         self.data.qvel[:] = 0
         self.cmd = np.array(self.cfg.deploy.defcmd)
-        self.controller.move_to_default_pos(self.cfg.robot.init_state.pos)
-        logging.info("Rest done")
+        self.controller.move_to_default_pos(self.dof_init_pose)
 
-    @staticmethod
-    def pd_control(target_q, q, kp, target_dq, dq, kd):
-        '''Calculates torques from position commands
-        '''
-        return (target_q - q) * kp + (target_dq - dq) * kd
+    # @staticmethod
+    # def pd_control(target_q, q, kp, target_dq, dq, kd):
+    #     '''Calculates torques from position commands
+    #     '''
+    #     return (target_q - q) * kp + (target_dq - dq) * kd
 
     def _get_state(self):
         '''Extracts physical states from the mujoco data structure
@@ -331,10 +285,10 @@ class RealRobot(URCIRobot):
                              f"dq\t\t: {self.dq[motor_idx]}\n")
                 # breakpoint()
 
-    _motor_offset = np.array([
-        3, 0.5, 2, -0.5, -1, 1, -2, 1, -.3, 1, 0.3, 0.1, 0, 0, 0, 0, 1, 0, -1,
-        -2, 0, 0, 0
-    ]) * (np.pi / 180)  # [23]
+    # _motor_offset = np.array([
+    #     3, 0.5, 2, -0.5, -1, 1, -2, 1, -.3, 1, 0.3, 0.1, 0, 0, 0, 0, 1, 0, -1,
+    #     -2, 0, 0, 0
+    # ]) * (np.pi / 180)  # [23]
 
     def _apply_action(self, target_q):
         """Apply hardware action."""
@@ -346,27 +300,16 @@ class RealRobot(URCIRobot):
         ## 50Hz and sleep
         self.GetState()
 
-        tau = self.pd_control(target_q, self.q, self.kp, 0, self.dq,
-                              self.kd)  # Calc torques
-
-        tau = np.clip(tau, -self.tau_limit, self.tau_limit)  # Clamp torques
+        # tau = self.pd_control(target_q, self.q, self.kp, 0, self.dq,
+        #                       self.kd)  # Calc torques
+        # tau = np.clip(tau, -self.tau_limit, self.tau_limit)  # Clamp torques
 
         # MujocoRobot.print_torque(tau)
         # tau*=0
         # print(np.linalg.norm(target_q-self.q), np.linalg.norm(self.dq), np.linalg.norm(tau))
         # self.data.qpos[:3] = np.array([0,0,1])
 
-        self.data.ctrl[:] = tau
-
-        if self.HANG:
-            # self.data.ctrl[14] = 0.5
-            self.data.qpos[:3] = np.array([0, 0, 1])
-            self.data.qpos[3:7] = np.array([1, 0, 0, 0])
-
-        ## TODO
-        # mujoco.mj_step(self.model, self.data)  # type: ignore
-        ##
-        # self.controller.send_target(self.data.ctrl)
+        self.controller.send_target(target_q)
 
         # self.tracking()
         # self.render_step()

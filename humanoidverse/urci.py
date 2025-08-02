@@ -1,7 +1,7 @@
 # Unified Robot Control Interface for HumanoidVerse
 # Weiji Xie @ 2025.03.04
 
-REAL: bool = False
+REAL: bool = True
 
 import os
 import sys

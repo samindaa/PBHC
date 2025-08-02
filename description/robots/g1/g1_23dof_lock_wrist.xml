@@ -260,4 +260,8 @@
     <light pos="1 0 3.5" dir="0 0 -1" directional="true"/>
     <geom contype="15" conaffinity="15"  name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
   </worldbody>
+
+  <!-- <equality>
+    <weld name="pelivs_mount" body1="world" body2="pelvis" anchor="0 0 0" relpose="0 0 1.0 1 0 0 0" torquescale="1" />
+  </equality> -->
 </mujoco>
