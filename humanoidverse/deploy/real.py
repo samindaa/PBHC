@@ -121,10 +121,10 @@ class Controller:
         #     if start_str in ["s", "S"]:
         #         break
 
-        while self.remote_controller.button[KeyMap.start] != 1:
-            create_zero_cmd(self.low_cmd)
-            self.send_cmd(self.low_cmd)
-            time.sleep(0.02)
+        # while self.remote_controller.button[KeyMap.start] != 1:
+        #     create_zero_cmd(self.low_cmd)
+        #     self.send_cmd(self.low_cmd)
+        #     time.sleep(0.02)
 
     def move_to_default_pos(self, default_pos):
         print(f"Moving to default pos: {len(default_pos)=} {default_pos}")
@@ -132,7 +132,6 @@ class Controller:
         total_time = 2
         num_step = int(total_time / 0.02)
 
-        dof_size = len(self.config.dof_idx)
         # record the current pos
         init_dof_pos = [self.low_state.motor_state[i].q for i in self.config.dof_idx if i in self.config.use_dof_idx]
         init_dof_pos = np.array(init_dof_pos, dtype=np.float32)
@@ -146,14 +145,18 @@ class Controller:
 
     def get_state(self, data):
         """Get mujoco data proxy."""
-        # TODO: Get the current joint position and velocity
-        data.qpos[:3] = np.array([0, 0, 1])
-        data.qpos[3:7] = np.array([1, 0, 0, 0])
+        q = np.zeros_like(data.qpos)
+        dq = np.zeros_like(data.qvel)
+        q[:3] = np.array([0, 0, 1])
+        q[3:7] = np.array([1, 0, 0, 0])
         for i, j in enumerate(self.config.use_dof_idx):
-            data.qpos[7 + i] = self.low_state.motor_state[j].q
-            data.qpos[6 + i] = self.low_state.motor_state[j].dq
+            q[7 + i] = self.low_state.motor_state[j].q
+            dq[6 + i] = self.low_state.motor_state[j].dq
 
+        data.qpos[:] = q
+        data.qvel[:] = dq
         # print("XXX", np.array_str(data.qpos, precision=2, suppress_small=True))
+        # print("YYY", np.array_str(data.qvel, precision=2, suppress_small=True))
         return data
 
     def send_target(self, target_dof_pos):
@@ -165,7 +168,7 @@ class Controller:
                 tgt = 0.0
             self.low_cmd.motor_cmd[motor_idx].q = tgt
             self.low_cmd.motor_cmd[motor_idx].qd = 0
-            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[motor_idx]*1.0
+            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[motor_idx]*0.2
             self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[motor_idx]*1.0
             self.low_cmd.motor_cmd[motor_idx].tau = 0
 
@@ -284,11 +287,6 @@ class RealRobot(URCIRobot):
                              f"q\t\t: {self.q[motor_idx]} \n"
                              f"dq\t\t: {self.dq[motor_idx]}\n")
                 # breakpoint()
-
-    # _motor_offset = np.array([
-    #     3, 0.5, 2, -0.5, -1, 1, -2, 1, -.3, 1, 0.3, 0.1, 0, 0, 0, 0, 1, 0, -1,
-    #     -2, 0, 0, 0
-    # ]) * (np.pi / 180)  # [23]
 
     def _apply_action(self, target_q):
         """Apply hardware action."""
