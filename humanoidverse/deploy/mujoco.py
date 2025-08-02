@@ -206,7 +206,7 @@ class ViewerPlugin:
 class MujocoRobot(URCIRobot, ViewerPlugin):
     REAL=False
     
-    HANG=False
+    HANG=True
     
     RAND_NOISE  : bool = False
     RAND_DELAY  : bool = True

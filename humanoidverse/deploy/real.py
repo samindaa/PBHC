@@ -57,25 +57,23 @@ class Controller:
         # self.counter = 0
 
         self.config = ml_collections.config_dict.create(
-            leg_joint2motor_idx=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-            kps=[100, 100, 100, 150, 40, 40, 100, 100, 100, 150, 40, 40],
-            kds=[2, 2, 2, 4, 2, 2, 2, 2, 2, 4, 2, 2],
-            # default_angles=[
-            #     -0.1, 0.0, 0.0, 0.3, -0.2, 0.0, -0.1, 0.0, 0.0, 0.3, -0.2, 0.0
-            # ],
-            arm_waist_joint2motor_idx=[
-                12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-                28
+            dof_idx=[
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28
             ],
-            arm_waist_kps=[
-                300, 300, 300, 100, 100, 50, 50, 20, 20, 20, 100, 100, 50, 50,
-                20, 20, 20
+            kps=[
+                100, 100, 100, 150, 40, 40, 100, 100, 100, 150, 40, 40, 400,
+                400, 400, 100, 100, 50, 50, 20, 20, 20, 100, 100, 50, 50, 20,
+                20, 20
             ],
-            arm_waist_kds=[3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1],
-            # arm_waist_target=[
-            #     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            # ],
-        )
+            kds=[
+                2, 2, 2, 4, 2, 2, 2, 2, 2, 4, 2, 2, 5, 5, 5, 2, 2, 2, 2, 1, 1,
+                1, 2, 2, 2, 2, 1, 1, 1
+            ],
+            use_dof_idx=[
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                18, 22, 23, 24, 25
+            ])
 
         # g1 and h1_2 use the hg msg type
         self.low_cmd = unitree_hg_msg_dds__LowCmd_()
@@ -133,23 +131,18 @@ class Controller:
         total_time = 2
         num_step = int(total_time / 0.02)
 
-        dof_idx = self.config.leg_joint2motor_idx + self.config.arm_waist_joint2motor_idx
-        kps = self.config.kps + self.config.arm_waist_kps
-        kds = self.config.kds + self.config.arm_waist_kds
-        # default_pos = np.concatenate(
-        #     (self.config.default_angles, self.config.arm_waist_target), axis=0)
-        dof_size = len(dof_idx)
-
+        dof_size = len(self.config.dof_idx)
         # record the current pos
         init_dof_pos = np.zeros(dof_size, dtype=np.float32)
         for i in range(dof_size):
-            init_dof_pos[i] = self.low_state.motor_state[dof_idx[i]].q
+            init_dof_pos[i] = self.low_state.motor_state[
+                self.config.dof_idx[i]].q
 
         # move to default pos
         for i in range(num_step):
             alpha = i / num_step
             for j in range(dof_size):
-                motor_idx = dof_idx[j]
+                motor_idx = self.config.dof_idx[j]
                 # PBHC 23DOF
                 if motor_idx >= len(default_pos):
                     continue
@@ -157,8 +150,8 @@ class Controller:
                 self.low_cmd.motor_cmd[motor_idx].q = init_dof_pos[j] * (
                     1 - alpha) + target_pos * alpha
                 self.low_cmd.motor_cmd[motor_idx].qd = 0
-                self.low_cmd.motor_cmd[motor_idx].kp = kps[j]
-                self.low_cmd.motor_cmd[motor_idx].kd = kds[j]
+                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[j]
+                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[j]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
             self.send_cmd(self.low_cmd)
             time.sleep(0.02)
@@ -188,19 +181,14 @@ class Controller:
         #     self.send_cmd(self.low_cmd)
         #     time.sleep(self.config.control_dt)
 
-    def get_state(self, model, data):
+    def get_state(self, data):
         """Get mujoco data proxy."""
-        # Get the current joint position and velocity
-        ## TODO: fix the pos and quat of base_link
+        # TODO: Get the current joint position and velocity
         data.qpos[:3] = np.array([0, 0, 1])
         data.qpos[3:7] = np.array([1, 0, 0, 0])
-        ##
-        dof_idx = self.config.leg_joint2motor_idx + self.config.arm_waist_joint2motor_idx
-        for i in range(len(dof_idx)):
-            if i >= model.nu:
-                continue
-            data.qpos[7 + i] = self.low_state.motor_state[dof_idx[i]].q
-            data.qpos[6 + i] = self.low_state.motor_state[dof_idx[i]].dq
+        for i, j in enumerate(self.config.use_dof_idx):
+            data.qpos[7 + i] = self.low_state.motor_state[j].q
+            data.qpos[6 + i] = self.low_state.motor_state[j].dq
 
         # print("XXX", data.qpos)
         # print("YYY", data.qvel)
@@ -209,28 +197,21 @@ class Controller:
 
     def send_target(self, target_dof_pos):
         """Send target_dof_pos to hardware."""
-        for i in range(len(self.config.leg_joint2motor_idx)):
-            motor_idx = self.config.leg_joint2motor_idx[i]
-            self.low_cmd.motor_cmd[motor_idx].q = target_dof_pos[i]
+        for motor_idx in self.config.dof_idx:
+            if motor_idx in self.config.use_dof_idx:
+                tgt = target_dof_pos[self.config.use_dof_idx.index(motor_idx)]
+            else:
+                tgt = 0.0
+            self.low_cmd.motor_cmd[motor_idx].q = tgt
             self.low_cmd.motor_cmd[motor_idx].qd = 0
-            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[i]
-            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[i]
-            self.low_cmd.motor_cmd[motor_idx].tau = 0
-
-        for i in range(len(self.config.arm_waist_joint2motor_idx)):
-            motor_idx = self.config.arm_waist_joint2motor_idx[i]
-            if motor_idx >= len(target_dof_pos):
-                continue
-            self.low_cmd.motor_cmd[motor_idx].q = target_dof_pos[i]
-            self.low_cmd.motor_cmd[motor_idx].qd = 0
-            self.low_cmd.motor_cmd[motor_idx].kp = target_dof_pos[i]
-            self.low_cmd.motor_cmd[motor_idx].kd = target_dof_pos[i]
+            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[motor_idx]
+            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[motor_idx]
             self.low_cmd.motor_cmd[motor_idx].tau = 0
 
         self.send_cmd(self.low_cmd)
 
 
-class AvatarRobot(URCIRobot):
+class RealRobot(URCIRobot):
     REAL = True
     HANG = True
 
@@ -314,7 +295,7 @@ class AvatarRobot(URCIRobot):
     def _get_state(self):
         '''Extracts physical states from the mujoco data structure
         '''
-        self.data = self.controller.get_state(self.model, self.data)
+        self.data = self.controller.get_state(self.data)
         data = self.data
         self.q_raw = data.qpos.astype(np.double)[7:]  # 19 dim
         self.q = self.q_raw.copy()
