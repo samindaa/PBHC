@@ -1,5 +1,5 @@
-# Unified Robot Control Interface for HumanoidVerse
-# Weiji Xie @ 2025.03.04
+# Unified Robot Control Interface for HumanoidVerse: REAL
+# saminda@
 
 import mujoco
 import os
