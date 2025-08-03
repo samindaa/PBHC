@@ -7,12 +7,12 @@ import time
 import signal
 from typing import Union
 import ml_collections
-import pprint
 
 import torch
 from humanoidverse.deploy import URCIRobot
 from scipy.spatial.transform import Rotation as R
 import logging
+import omegaconf
 from utils.config_utils import *  # noqa: E402, F403
 # add argparse arguments
 
@@ -186,10 +186,10 @@ class RealRobot(URCIRobot):
     def __init__(self, cfg):
         super().__init__(cfg)
 
-        pprint.pprint(dict(cfg))
+        print(omegaconf.OmegaConf.to_yaml(cfg))
         # Initialize DDS communication
-        # ChannelFactoryInitialize(1, "lo")
-        ChannelFactoryInitialize(0, "enx2c16dbaa90f1")
+        ChannelFactoryInitialize(1, "lo")
+        # ChannelFactoryInitialize(0, "enx2c16dbaa90f1")
         self.controller = Controller()
 
         # Enter the zero torque state, press the start key to continue executing
