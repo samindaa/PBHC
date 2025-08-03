@@ -199,7 +199,7 @@ class RealRobot(URCIRobot):
 
         def signal_handler(sig, frame):
             logger.info("Ctrl+C  Exiting safely...")
-            raise RobotExitException("Mujoco Robot Exiting")
+            raise RobotExitException("Real Robot Exiting")
 
         signal.signal(signal.SIGINT, signal_handler)
 
