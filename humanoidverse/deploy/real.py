@@ -188,8 +188,8 @@ class RealRobot(URCIRobot):
 
         pprint.pprint(dict(cfg))
         # Initialize DDS communication
-        ChannelFactoryInitialize(1, "lo")
-        # ChannelFactoryInitialize(0, "enx2c16dbaa90f1")
+        # ChannelFactoryInitialize(1, "lo")
+        ChannelFactoryInitialize(0, "enx2c16dbaa90f1")
         self.controller = Controller()
 
         # Enter the zero torque state, press the start key to continue executing
@@ -197,6 +197,8 @@ class RealRobot(URCIRobot):
 
         # Move to the default position
         self.controller.move_to_default_pos(self.dof_init_pose)
+
+        input("KEEP YOUR HAND ON THE E-STOP")
 
         def signal_handler(sig, frame):
             logger.info("Ctrl+C  Exiting safely...")
@@ -243,11 +245,11 @@ class RealRobot(URCIRobot):
         self.cmd = np.array(self.cfg.deploy.defcmd)
         self.controller.move_to_default_pos(self.dof_init_pose)
 
-    # @staticmethod
-    # def pd_control(target_q, q, kp, target_dq, dq, kd):
-    #     '''Calculates torques from position commands
-    #     '''
-    #     return (target_q - q) * kp + (target_dq - dq) * kd
+    @staticmethod
+    def pd_control(target_q, q, kp, target_dq, dq, kd):
+        '''Calculates torques from position commands
+        '''
+        return (target_q - q) * kp + (target_dq - dq) * kd
 
     def _get_state(self):
         '''Extracts physical states from the mujoco data structure
@@ -298,8 +300,14 @@ class RealRobot(URCIRobot):
         ## 50Hz and sleep
         self.GetState()
 
-        # tau = self.pd_control(target_q, self.q, self.kp, 0, self.dq,
-        #                       self.kd)  # Calc torques
+        tau = self.pd_control(target_q, self.q, self.kp, 0, self.dq,
+                              self.kd)  # Calc torques
+        safety_tau = np.all(np.abs(tau) < 100)
+        if not safety_tau:
+            self.controller.move_to_default_pos(self.dof_init_pose)
+            raise ValueError(f"NOT SAFE {tau}")
+            
+        
         # tau = np.clip(tau, -self.tau_limit, self.tau_limit)  # Clamp torques
 
         # MujocoRobot.print_torque(tau)
