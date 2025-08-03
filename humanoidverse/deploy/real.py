@@ -305,7 +305,7 @@ class RealRobot(URCIRobot):
         safety_tau = np.all(np.abs(tau) < 100)
         if not safety_tau:
             self.controller.move_to_default_pos(self.dof_init_pose)
-            raise ValueError(f"NOT SAFE {tau}")
+            raise ValueError(f"NOT SAFE {np.array_str(tau, precision=2, suppress_small=True)}")
             
         
         # tau = np.clip(tau, -self.tau_limit, self.tau_limit)  # Clamp torques
