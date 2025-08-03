@@ -48,15 +48,7 @@ class Controller:
         # self.config = config
         self.remote_controller = RemoteController()
 
-        # Initializing process variables
-        # self.qj = np.zeros(config.num_actions, dtype=np.float32)
-        # self.dqj = np.zeros(config.num_actions, dtype=np.float32)
-        # self.action = np.zeros(config.num_actions, dtype=np.float32)
-        # self.target_dof_pos = config.default_angles.copy()
-        # self.obs = np.zeros(config.num_obs, dtype=np.float32)
-        # self.cmd = np.array([0.0, 0, 0])
-        # self.counter = 0
-
+        # TODO: fill this from hydra config
         self.config = ml_collections.config_dict.create(
             dof_idx=[
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
@@ -135,7 +127,7 @@ class Controller:
         # record the current pos
         init_dof_pos = [self.low_state.motor_state[i].q for i in self.config.dof_idx if i in self.config.use_dof_idx]
         init_dof_pos = np.array(init_dof_pos, dtype=np.float32)
-        print("XXX", np.array_str(init_dof_pos, precision=2, suppress_small=True))
+        print("move_to_default_pos", np.array_str(init_dof_pos, precision=2, suppress_small=True))
         # move to default pos
         for i in range(num_step):
             alpha = i / num_step
@@ -147,14 +139,19 @@ class Controller:
         """Get mujoco data proxy."""
         q = np.zeros_like(data.qpos)
         dq = np.zeros_like(data.qvel)
-        q[:3] = np.array([0, 0, 1])
-        q[3:7] = np.array([1, 0, 0, 0])
+        # imu_state quaternion: w, x, y, z
+        quat = self.low_state.imu_state.quaternion
+        ang_vel = np.array(self.low_state.imu_state.gyroscope)
+        q[:3] = np.array([0.0, 0.0, 1.0])
+        q[3:7] = np.array(quat)
+        dq[3:6] = np.array(ang_vel)
         for i, j in enumerate(self.config.use_dof_idx):
             q[7 + i] = self.low_state.motor_state[j].q
             dq[6 + i] = self.low_state.motor_state[j].dq
 
         data.qpos[:] = q
         data.qvel[:] = dq
+        # print("XXX", quat, ang_vel)
         # print("XXX", np.array_str(data.qpos, precision=2, suppress_small=True))
         # print("YYY", np.array_str(data.qvel, precision=2, suppress_small=True))
         return data
